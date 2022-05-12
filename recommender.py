@@ -35,6 +35,10 @@ model = load_model('allenai-specter')
 def compute_minitrack_embeddings(minitracks):
 	return model.encode(minitracks['description'], convert_to_tensor=True)
 
+def update_minitracks():
+	minitracks = fetch_and_clean_minitracks(conn)
+	minitrack_embeddings = compute_minitrack_embeddings(minitracks)
+
 # model = SentenceTransformer('bert-base-nli-mean-tokens')
 # model = SentenceTransformer('all-MiniLM-L6-v2')
 minitracks = fetch_and_clean_minitracks(conn)
@@ -53,13 +57,9 @@ if len(st.session_state.abstract) > 0:
 	cosine_scores.shape
 	ordered = torch.argsort(cosine_scores[0], descending=True)
 	results = []
-	# ind = ordered[0:10]
-	# results = minitracks[:][ind]
-	print(minitracks.shape)
-	print(ordered)
 	for idx, jTensor in enumerate(ordered):
 		j = jTensor.item()
-		if idx < 10:
+		if idx < 15:
 			results.append({
 				'rank': idx+1,
 				'score': cosine_scores[0][j].item(),
@@ -67,19 +67,20 @@ if len(st.session_state.abstract) > 0:
 				'minitrack:': minitracks['name'][j],
 			})
 			#print(f"{minitracks['minitrackname'][j]} \t\t {cosine_scores[i][j]}")
-	st.session_state['results'] = results
+	st.session_state['results'] = pd.DataFrame(results)
 
 st.title("HICSS Minitrack Recommender")
 st.header('Data')
 st.write('Minitracks:')
+# st.button('Update Minitracks', on_click=update_minitracks)
 st.write(minitracks)
 
 st.header('Input')
 st.write("Input your abstract, title, or keywords and it the inputs similarity will be computed to all minitrack descriptions. ")
-st.text_area("Your abstract", key="abstract")
+st.text_area("Your abstract", key="abstract", height=250)
 
 st.header('Results')
-st.write("The following list represents the 15 minitracks with the highes cosine similarity score.")
+st.write("The following ranked list shows the 15 minitracks with the highest cosine similarity score.")
 # You can access the value at any point with:
 if len(st.session_state.abstract) > 0:
 	st.write(st.session_state['results'])

@@ -54,7 +54,6 @@ if 'results' not in st.session_state:
 if len(st.session_state.abstract) > 0:
 	abstract_embedding = model.encode([st.session_state.abstract], convert_to_tensor=True)
 	cosine_scores = util.cos_sim(abstract_embedding, minitrack_embeddings)
-	cosine_scores.shape
 	ordered = torch.argsort(cosine_scores[0], descending=True)
 	results = []
 	for idx, jTensor in enumerate(ordered):

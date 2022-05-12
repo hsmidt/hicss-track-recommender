@@ -4,12 +4,13 @@ import psycopg2
 from sentence_transformers import SentenceTransformer, util
 import torch
 
-host=st.secrets["db_host"]
-database=st.secrets["db_database"]
-port=st.secrets["db_port"]
-user=st.secrets["db_user"]
-pwd=st.secrets["db_pwd"]
+# Initialize connection.
+# Uses st.experimental_singleton to only run once.
+@st.experimental_singleton
+def init_connection():
+	return psycopg2.connect(**st.secrets["postgres"])
 
+conn = init_connection()
 
 @st.experimental_memo
 def fetch_and_clean_minitracks(_db_connection):
@@ -28,17 +29,14 @@ def fetch_and_clean_minitracks(_db_connection):
 def compute_minitrack_embeddings(_model, minitracks):
 	return model.encode(minitracks['description'], convert_to_tensor=True)
 
-connection = psycopg2.connect("host='{}' port={} dbname='{}' user={} password={}".format(host, port, database, user, pwd))
-minitracks = fetch_and_clean_minitracks(connection)
-
-# model = SentenceTransformer('bert-base-nli-mean-tokens')
-# model = SentenceTransformer('all-MiniLM-L6-v2')
-
 @st.experimental_memo
 def load_model(modelname):
 	return SentenceTransformer(modelname)
 
+# model = SentenceTransformer('bert-base-nli-mean-tokens')
+# model = SentenceTransformer('all-MiniLM-L6-v2')
 model = load_model('allenai-specter')
+minitracks = fetch_and_clean_minitracks(conn)
 minitrack_embeddings = compute_minitrack_embeddings(model, minitracks)
 
 if 'abstract' not in st.session_state:

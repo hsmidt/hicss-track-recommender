@@ -4,28 +4,21 @@ import psycopg2
 from sentence_transformers import SentenceTransformer, util
 import torch
 
-# Initialize connection.
-# Uses st.experimental_singleton to only run once.
-@st.experimental_singleton
-def init_connection():
-	return psycopg2.connect(**st.secrets["postgres"])
-
-conn = init_connection()
-
 @st.experimental_memo
-def fetch_and_clean_minitracks(_db_connection):
+def fetch_and_clean_minitracks():
 		# Fetch data from _db_connection here, and then clean it up.
-		sql = """
-			SELECT c.shortname as conference, t.code as track, t.name as trackname, m.id as id, m.name as name, m.description
-			FROM minitracks m
-			JOIN tracks t on t.id = m.track_id
-			JOIN conferences c on c.id = t.conference_id
-			where c.shortname = 'HICSS-56'
-		"""
-		minitracks = pd.read_sql_query(sql, _db_connection)
+		with psycopg2.connect(**st.secrets["postgres"]) as conn:
+			sql = """
+				SELECT c.shortname as conference, t.code as track, t.name as trackname, m.id as id, m.name as name, m.description
+				FROM minitracks m
+				JOIN tracks t on t.id = m.track_id
+				JOIN conferences c on c.id = t.conference_id
+				where c.shortname = 'HICSS-56'
+			"""
+			minitracks = pd.read_sql_query(sql, conn)
 		return minitracks
 
-@st.experimental_singleton
+@st.cache
 def load_model(modelname):
 	return SentenceTransformer(modelname)
 
@@ -35,13 +28,9 @@ model = load_model('allenai-specter')
 def compute_minitrack_embeddings(minitracks):
 	return model.encode(minitracks['description'], convert_to_tensor=True)
 
-def update_minitracks():
-	minitracks = fetch_and_clean_minitracks(conn)
-	minitrack_embeddings = compute_minitrack_embeddings(minitracks)
-
 # model = SentenceTransformer('bert-base-nli-mean-tokens')
 # model = SentenceTransformer('all-MiniLM-L6-v2')
-minitracks = fetch_and_clean_minitracks(conn)
+minitracks = fetch_and_clean_minitracks()
 minitrack_embeddings = compute_minitrack_embeddings(minitracks)
 
 if 'abstract' not in st.session_state:

@@ -1,37 +1,42 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
 from sentence_transformers import SentenceTransformer, util
 import torch
+import pickle
+import io
 
-@st.experimental_memo
-def fetch_and_clean_minitracks():
-		# Fetch data from _db_connection here, and then clean it up.
-		with psycopg2.connect(**st.secrets["postgres"]) as conn:
-			sql = """
-				SELECT c.shortname as conference, t.code as track, t.name as trackname, m.id as id, m.name as name, m.description
-				FROM minitracks m
-				JOIN tracks t on t.id = m.track_id
-				JOIN conferences c on c.id = t.conference_id
-				where c.shortname = 'HICSS-56'
-			"""
-			minitracks = pd.read_sql_query(sql, conn)
-		return minitracks
-
-@st.cache
+@st.cache(allow_output_mutation=True)
 def load_model(modelname):
 	return SentenceTransformer(modelname)
 
 model = load_model('allenai-specter')
 
-@st.experimental_memo
+# workaround for when embeddings were done in GPU environment:
+# https://github.com/pytorch/pytorch/issues/16797#issuecomment-633423219
+class CPU_Unpickler(pickle.Unpickler):
+	def find_class(self, module, name):
+		if module == 'torch.storage' and name == '_load_from_bytes':
+			return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
+		else: return super().find_class(module, name)
+
+@st.experimental_singleton
+def load_data():
+	with open('./data/hicss56_embeddings.pkl', "rb") as fIn:
+		stored_data = CPU_Unpickler(fIn).load()
+		minitracks = stored_data['minitracks']
+		embeddings = stored_data['embeddings']
+	return minitracks, embeddings
+
+minitracks, minitrack_embeddings = load_data()
+
+@st.experimental_singleton
 def compute_minitrack_embeddings(minitracks):
 	return model.encode(minitracks['description'], convert_to_tensor=True)
 
 # model = SentenceTransformer('bert-base-nli-mean-tokens')
 # model = SentenceTransformer('all-MiniLM-L6-v2')
-minitracks = fetch_and_clean_minitracks()
-minitrack_embeddings = compute_minitrack_embeddings(minitracks)
+# minitracks = fetch_and_clean_minitracks()
+# minitrack_embeddings = compute_minitrack_embeddings(minitracks)
 
 if 'abstract' not in st.session_state:
 	st.session_state['abstract'] = ''

@@ -25,19 +25,20 @@ def fetch_and_clean_minitracks(_db_connection):
 		minitracks = pd.read_sql_query(sql, _db_connection)
 		return minitracks
 
-@st.experimental_memo
-def compute_minitrack_embeddings(_model, minitracks):
-	return model.encode(minitracks['description'], convert_to_tensor=True)
-
-@st.experimental_memo
+@st.experimental_singleton
 def load_model(modelname):
 	return SentenceTransformer(modelname)
 
+model = load_model('allenai-specter')
+
+@st.experimental_memo
+def compute_minitrack_embeddings(minitracks):
+	return model.encode(minitracks['description'], convert_to_tensor=True)
+
 # model = SentenceTransformer('bert-base-nli-mean-tokens')
 # model = SentenceTransformer('all-MiniLM-L6-v2')
-model = load_model('allenai-specter')
 minitracks = fetch_and_clean_minitracks(conn)
-minitrack_embeddings = compute_minitrack_embeddings(model, minitracks)
+minitrack_embeddings = compute_minitrack_embeddings(minitracks)
 
 if 'abstract' not in st.session_state:
 	st.session_state['abstract'] = ''
@@ -59,7 +60,12 @@ if len(st.session_state.abstract) > 0:
 	for idx, jTensor in enumerate(ordered):
 		j = jTensor.item()
 		if idx < 10:
-			results.append({'rank': idx+1, 'score': cosine_scores[0][j].item(), 'minitrack:': minitracks['name'][j]})
+			results.append({
+				'rank': idx+1,
+				'score': cosine_scores[0][j].item(),
+				'track': f"{minitracks['trackname'][j]} ({minitracks['track'][j]})",
+				'minitrack:': minitracks['name'][j],
+			})
 			#print(f"{minitracks['minitrackname'][j]} \t\t {cosine_scores[i][j]}")
 	st.session_state['results'] = results
 
@@ -69,10 +75,11 @@ st.write('Minitracks:')
 st.write(minitracks)
 
 st.header('Input')
-st.write("Input your abstract: ")
+st.write("Input your abstract, title, or keywords and it the inputs similarity will be computed to all minitrack descriptions. ")
 st.text_area("Your abstract", key="abstract")
 
 st.header('Results')
+st.write("The following list represents the 15 minitracks with the highes cosine similarity score.")
 # You can access the value at any point with:
 if len(st.session_state.abstract) > 0:
 	st.write(st.session_state['results'])

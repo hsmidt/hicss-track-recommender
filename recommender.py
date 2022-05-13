@@ -10,9 +10,7 @@ import io
 def load_model(modelname):
 	return SentenceTransformer(modelname)
 
-# Need to keep it simpler due to limited resources with the Streamlit Cloud instance
-# model_names = ['allenai-specter', 'all-mpnet-base-v2']
-model_names = ['allenai-specter']
+model_names = ['allenai-specter', 'all-mpnet-base-v2']
 default_model = 'allenai-specter'
 if 'model' not in st.session_state:
 	st.session_state['model'] = load_model(default_model)
@@ -94,7 +92,7 @@ st.header('Results')
 st.write(f"The following ranked list shows the {st.session_state['top_k']} minitracks with the highest cosine similarity score.")
 slider_topk = st.slider(
      'Select number of desired results',
-     5, 30, st.session_state['top_k'])
+     5, 50, st.session_state['top_k'])
 st.button('Update Result Count', on_click=update_topk, args=(slider_topk,))
 
 # You can access the value at any point with:
